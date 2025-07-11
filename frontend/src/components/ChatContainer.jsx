@@ -89,7 +89,9 @@ const ChatContainer = () => {
               {message.text && <p>{message.text}</p>}
               {message.senderId === authUser._id && (
                 <span className="text-xs text-right mt-1">
-                  {message.status === "sending" ? "⏲️" : "✅"}
+                  {message.status === "sending" && "⏲️"}
+                  {message.status === "failed" && "⏲️"}
+                  {message.status === "sent" && "✅"}
                 </span>
               )}
             </div>

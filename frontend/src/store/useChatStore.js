@@ -70,22 +70,57 @@ export const useChatStore = create((set, get) => ({
 
       set((state) => ({
         messages: state.messages.map((msg) =>
-          msg._id === tempId ? confirmedMessage : msg
+          msg._id === confirmedMessage.tempId ? confirmedMessage : msg
         ),
       }));
-
-      return confirmedMessage;
     } catch (error) {
+      // ✅ Update message status to failed if error happens
       set((state) => ({
         messages: state.messages.map((msg) =>
           msg._id === tempId ? { ...msg, status: "failed" } : msg
         ),
       }));
-
-      console.error("Send error:", error);
-      return null;
+      console.log(error("Message failed to send. Please check your internet."));
     }
   },
+  retryUnsentMessages: async () => {
+    const { messages, selectedUser } = get();
+    if (!selectedUser) return;
+
+    const authUser = useAuthStore.getState().authUser;
+    if (!authUser) return;
+
+    const unsentMessages = messages.filter(
+      (msg) => msg.status === "failed" || msg.status === "sending"
+    );
+
+    for (const unsent of unsentMessages) {
+      try {
+        const res = await axiosInstance.post(
+          `/messages/send/${selectedUser._id}`,
+          {
+            text: unsent.text,
+            image: unsent.image,
+            tempId: unsent._id, // keep same tempId to match
+          }
+        );
+
+        const confirmedMessage = {
+          ...res.data,
+          status: "sent",
+        };
+
+        set((state) => ({
+          messages: state.messages.map((msg) =>
+            msg._id === confirmedMessage.tempId ? confirmedMessage : msg
+          ),
+        }));
+      } catch (error) {
+        console.error("Retry failed for message:", unsent._id);
+      }
+    }
+  },
+
   subscribeToMessages: () => {
     const { selectedUser } = get();
     if (!selectedUser) return;
@@ -110,3 +145,9 @@ export const useChatStore = create((set, get) => ({
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),
 }));
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => {
+    useChatStore.getState().retryUnsentMessages();
+  });
+}
