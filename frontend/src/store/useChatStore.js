@@ -27,22 +27,65 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
       set({ messages: res.data });
+      console.log(res.status);
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
       set({ isMessagesLoading: false });
     }
   },
-  sendMessage: async (messageData) => {
-    const { selectedUser, messages } = get();
+  sendMessage: async ({ text, image }) => {
+    const tempId = Date.now().toString();
+    const authUser = useAuthStore.getState().authUser;
+    const selectedUser = get().selectedUser;
+
+    const newMessage = {
+      _id: tempId,
+      text,
+      image,
+      senderId: authUser._id,
+      receiverId: selectedUser._id,
+      status: "sending",
+      createdAt: new Date().toISOString(),
+    };
+
+    set((state) => ({
+      messages: [...state.messages, newMessage],
+    }));
+
     try {
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-      set({ messages: [...messages, res.data] });
+      const res = await axiosInstance.post(
+        `/messages/send/${selectedUser._id}`,
+        {
+          text,
+          image,
+          tempId,
+        }
+      );
+
+      const confirmedMessage = {
+        ...res.data,
+        status: "sent",
+      };
+
+      set((state) => ({
+        messages: state.messages.map((msg) =>
+          msg._id === tempId ? confirmedMessage : msg
+        ),
+      }));
+
+      return confirmedMessage;
     } catch (error) {
-      toast.error(error.response.data.message);
+      set((state) => ({
+        messages: state.messages.map((msg) =>
+          msg._id === tempId ? { ...msg, status: "failed" } : msg
+        ),
+      }));
+
+      console.error("Send error:", error);
+      return null;
     }
   },
-
   subscribeToMessages: () => {
     const { selectedUser } = get();
     if (!selectedUser) return;
@@ -50,7 +93,8 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
 
     socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
+      const isMessageSentFromSelectedUser =
+        newMessage.senderId === selectedUser._id;
       if (!isMessageSentFromSelectedUser) return;
 
       set({

@@ -18,6 +18,7 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    status: { type: String, default: "sent" },
   },
   { timestamps: true }
 );
