@@ -93,7 +93,7 @@ export const useChatStore = create((set, get) => ({
     const unsentMessages = messages.filter(
       (msg) => msg.status === "failed" || msg.status === "sending"
     );
-
+    console.log(unsentMessages);
     for (const unsent of unsentMessages) {
       try {
         const res = await axiosInstance.post(
